@@ -3,9 +3,11 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from app.db.session import get_db
+from app.dependencies.auth import get_current_user
 from app.dependencies.repositories import get_brand_repository
 from app.repositories.brand import BrandRepository
 from app.models.brand import BrandStatus
+from app.models.user import User
 from app.schemas.brand import BrandCreate, BrandUpdate, Brand as BrandSchema
 
 router = APIRouter()
@@ -18,8 +20,8 @@ def get_brands(
     db: Session = Depends(get_db),
     brand_repo: BrandRepository = Depends(get_brand_repository),
 ):
-    """Obtener lista de marcas"""
-    return brand_repo.get_all(db, skip=skip, limit=limit)
+    """Obtener lista de marcas con información del creador"""
+    return brand_repo.get_multi_with_creator(db, skip=skip, limit=limit)
 
 
 @router.get("/{brand_id}", response_model=BrandSchema)
@@ -28,8 +30,8 @@ def get_brand(
     db: Session = Depends(get_db),
     brand_repo: BrandRepository = Depends(get_brand_repository),
 ):
-    """Obtener una marca por ID"""
-    brand = brand_repo.get(db, brand_id)
+    """Obtener una marca por ID con información del creador"""
+    brand = brand_repo.get_with_creator(db, brand_id)
     if brand is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Brand not found"
@@ -41,9 +43,10 @@ def get_brand(
 def create_brand(
     brand: BrandCreate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
     brand_repo: BrandRepository = Depends(get_brand_repository),
 ):
-    """Crear una nueva marca"""
+    """Crear una nueva marca (requiere autenticación)"""
     if brand.registration_number:
         if brand_repo.exists_by_registration_number(db, brand.registration_number):
             raise HTTPException(
@@ -51,7 +54,10 @@ def create_brand(
                 detail="A brand with this registration number already exists",
             )
 
-    return brand_repo.create(db, obj_in=brand)
+    brand_data = brand.model_dump()
+    brand_data["created_by"] = current_user.id
+
+    return brand_repo.create(db, obj_in=BrandCreate(**brand_data))
 
 
 @router.put("/{brand_id}", response_model=BrandSchema)
@@ -104,8 +110,8 @@ def get_brands_by_status(
     db: Session = Depends(get_db),
     brand_repo: BrandRepository = Depends(get_brand_repository),
 ):
-    """Obtener marcas por estado"""
-    return brand_repo.get_by_status(db, status)
+    """Obtener marcas por estado con información del creador"""
+    return brand_repo.get_by_status_with_creator(db, status)
 
 
 @router.get("/owner/{owner}", response_model=List[BrandSchema])
@@ -151,3 +157,23 @@ def update_brand_status(
             status_code=status.HTTP_404_NOT_FOUND, detail="Brand not found"
         )
     return brand
+
+
+@router.get("/creator/{user_id}", response_model=List[BrandSchema])
+def get_brands_by_creator(
+    user_id: int,
+    db: Session = Depends(get_db),
+    brand_repo: BrandRepository = Depends(get_brand_repository),
+):
+    """Obtener marcas creadas por un usuario específico"""
+    return brand_repo.get_by_creator(db, user_id)
+
+
+@router.get("/my-brands", response_model=List[BrandSchema])
+def get_my_brands(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    brand_repo: BrandRepository = Depends(get_brand_repository),
+):
+    """Obtener marcas creadas por el usuario autenticado"""
+    return brand_repo.get_by_creator(db, current_user.id)

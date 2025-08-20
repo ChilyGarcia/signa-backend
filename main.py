@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from app.core import exception_handlers
 from app.routers.auth import router as auth_router
 from app.routers.user import router as user_router
@@ -16,6 +17,14 @@ app = FastAPI(
         "clientId": "",
         "clientSecret": "",
     },
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.add_exception_handler(HTTPException, exception_handlers.http_exception_handler)

@@ -1,6 +1,6 @@
 import enum
-from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy import String, Enum
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import String, Enum, Integer, ForeignKey
 from app.db.base_class import Base
 
 
@@ -25,6 +25,12 @@ class Brand(Base):
     status: Mapped[BrandStatus] = mapped_column(
         Enum(BrandStatus), nullable=False, default=BrandStatus.PENDING
     )
+
+    created_by: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False
+    )
+
+    creator: Mapped["User"] = relationship("User", back_populates="brands")
 
     def __str__(self):
         return self.name
