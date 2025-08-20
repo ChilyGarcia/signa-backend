@@ -7,11 +7,18 @@ class BrandBase(BaseModel):
     description: str | None = None
     owner: str
     registration_number: str | None = None
-    status: BrandStatus
 
 
 class BrandCreate(BrandBase):
     pass
+
+
+class BrandUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    owner: str | None = None
+    registration_number: str | None = None
+    status: BrandStatus | None = None
 
 
 class Brand(BrandBase):

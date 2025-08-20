@@ -23,7 +23,7 @@ class Brand(Base):
         String(100), nullable=True, unique=True
     )
     status: Mapped[BrandStatus] = mapped_column(
-        Enum(BrandStatus), nullable=False
+        Enum(BrandStatus), nullable=False, default=BrandStatus.PENDING
     )
 
     def __str__(self):
