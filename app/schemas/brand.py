@@ -35,7 +35,7 @@ class UserInfo(BaseModel):
 class Brand(BrandBase):
     id: int
     status: BrandStatus
-    created_by: int
+    created_by: int | None = None
     creator: UserInfo | None = None
 
     class Config:

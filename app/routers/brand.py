@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Header
 from sqlalchemy.orm import Session
 from typing import List
 
@@ -39,14 +39,24 @@ def get_brand(
     return brand
 
 
-@router.post("/", response_model=BrandSchema, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/", response_model=BrandSchema, status_code=status.HTTP_201_CREATED
+)
 def create_brand(
     brand: BrandCreate,
+    authorization: str = Header(
+        None, description="Bearer token de autorización"
+    ),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     brand_repo: BrandRepository = Depends(get_brand_repository),
 ):
-    """Crear una nueva marca (requiere autenticación)"""
+    """
+    Crear una nueva marca (requiere autenticación)
+
+    - **Requiere Bearer Token**: Debes estar autenticado para crear una marca
+    - **Authorization**: Bearer {tu_token_jwt}
+    """
     if brand.registration_number:
         if brand_repo.exists_by_registration_number(db, brand.registration_number):
             raise HTTPException(
@@ -171,9 +181,17 @@ def get_brands_by_creator(
 
 @router.get("/my-brands", response_model=List[BrandSchema])
 def get_my_brands(
+    authorization: str = Header(
+        None, description="Bearer token de autorización"
+    ),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     brand_repo: BrandRepository = Depends(get_brand_repository),
 ):
-    """Obtener marcas creadas por el usuario autenticado"""
+    """
+    Obtener marcas creadas por el usuario autenticado
+    
+    - **Requiere Bearer Token**: Debes estar autenticado
+    - **Authorization**: Bearer {tu_token_jwt}
+    """
     return brand_repo.get_by_creator(db, current_user.id)
