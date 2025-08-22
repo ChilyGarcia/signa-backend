@@ -2,3 +2,4 @@ from app.db.base_class import Base
 
 from app.models.user import User
 from app.models.brand import Brand
+from app.models.audit import BrandAudit

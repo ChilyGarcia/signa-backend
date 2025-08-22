@@ -15,10 +15,22 @@ def get_current_user(
         payload = decode_access_token(token, verify_exp=False)
         user_id = int(payload.get("sub"))
     except Exception as e:
-        raise HTTPException(status_code=401, detail=f"Token inválido: {str(e)}")
+        raise HTTPException(
+            status_code=401, 
+            detail=f"Token inválido o expirado: {str(e)}"
+        )
 
     user = db.query(DBUser).filter(DBUser.id == user_id).first()
     if not user:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        raise HTTPException(
+            status_code=404, 
+            detail="Usuario no encontrado en la base de datos"
+        )
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=401, 
+            detail="Usuario inactivo"
+        )
 
     return user

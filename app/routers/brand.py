@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Header
+import copy
+from fastapi import APIRouter, Depends, HTTPException, status, Header, Request
 from sqlalchemy.orm import Session
 from typing import List
 
@@ -9,6 +10,7 @@ from app.repositories.brand import BrandRepository
 from app.models.brand import BrandStatus
 from app.models.user import User
 from app.schemas.brand import BrandCreate, BrandUpdate, Brand as BrandSchema
+from app.services.audit_service import AuditService
 
 router = APIRouter()
 
@@ -39,14 +41,11 @@ def get_brand(
     return brand
 
 
-@router.post(
-    "/", response_model=BrandSchema, status_code=status.HTTP_201_CREATED
-)
+@router.post("/", response_model=BrandSchema, status_code=status.HTTP_201_CREATED)
 def create_brand(
     brand: BrandCreate,
-    authorization: str = Header(
-        None, description="Bearer token de autorización"
-    ),
+    request: Request,
+    authorization: str = Header(None, description="Bearer token de autorización"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     brand_repo: BrandRepository = Depends(get_brand_repository),
@@ -67,14 +66,22 @@ def create_brand(
     brand_data = brand.model_dump()
     brand_data["created_by"] = current_user.id
 
-    return brand_repo.create(db, obj_in=BrandCreate(**brand_data))
+    created_brand = brand_repo.create(db, obj_in=BrandCreate(**brand_data))
+
+    AuditService.log_brand_creation(
+        db=db, brand=created_brand, user=current_user, request=request
+    )
+
+    return created_brand
 
 
 @router.put("/{brand_id}", response_model=BrandSchema)
 def update_brand(
     brand_id: int,
     brand: BrandUpdate,
+    request: Request,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
     brand_repo: BrandRepository = Depends(get_brand_repository),
 ):
     """Actualizar una marca existente"""
@@ -94,13 +101,31 @@ def update_brand(
                 detail="A brand with this registration number already exists",
             )
 
-    return brand_repo.update(db, db_obj=db_brand, obj_in=brand)
+    # Guardar una copia del estado original antes de actualizar
+    old_brand = brand_repo.get(db, brand_id)
+    
+    # Crear una copia profunda del objeto original
+    old_brand_copy = copy.deepcopy(old_brand)
+
+    updated_brand = brand_repo.update(db, db_obj=db_brand, obj_in=brand)
+
+    AuditService.log_brand_update(
+        db=db,
+        old_brand=old_brand_copy,
+        new_brand=updated_brand,
+        user=current_user,
+        request=request,
+    )
+
+    return updated_brand
 
 
 @router.delete("/{brand_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_brand(
     brand_id: int,
+    request: Request,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
     brand_repo: BrandRepository = Depends(get_brand_repository),
 ):
     """Eliminar una marca"""
@@ -109,6 +134,10 @@ def delete_brand(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Brand not found"
         )
+
+    AuditService.log_brand_deletion(
+        db=db, brand=db_brand, user=current_user, request=request
+    )
 
     brand_repo.remove(db, id=brand_id)
     return None
@@ -157,15 +186,33 @@ def get_active_brands(
 def update_brand_status(
     brand_id: int,
     status: BrandStatus,
+    request: Request,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
     brand_repo: BrandRepository = Depends(get_brand_repository),
 ):
     """Actualizar solo el estado de una marca"""
-    brand = brand_repo.update_status(db, brand_id, status)
-    if brand is None:
+    # Obtener marca actual para auditoría
+    current_brand = brand_repo.get(db, brand_id)
+    if current_brand is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Brand not found"
         )
+
+    old_status = current_brand.status.value
+
+    brand = brand_repo.update_status(db, brand_id, status)
+
+    # Registrar auditoría de cambio de estado
+    AuditService.log_status_change(
+        db=db,
+        brand=brand,
+        old_status=old_status,
+        new_status=status.value,
+        user=current_user,
+        request=request,
+    )
+
     return brand
 
 
@@ -181,16 +228,14 @@ def get_brands_by_creator(
 
 @router.get("/my-brands", response_model=List[BrandSchema])
 def get_my_brands(
-    authorization: str = Header(
-        None, description="Bearer token de autorización"
-    ),
+    authorization: str = Header(None, description="Bearer token de autorización"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     brand_repo: BrandRepository = Depends(get_brand_repository),
 ):
     """
     Obtener marcas creadas por el usuario autenticado
-    
+
     - **Requiere Bearer Token**: Debes estar autenticado
     - **Authorization**: Bearer {tu_token_jwt}
     """

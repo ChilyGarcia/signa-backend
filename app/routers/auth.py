@@ -56,7 +56,6 @@ def login_oauth(
     form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)
 ):
     """Login OAuth2 para compatibilidad con Swagger UI (Authorize button)"""
-
     user = db.query(DBUser).filter(DBUser.email == form_data.username).first()
     if not user or not verify_password(form_data.password, user.password):
         raise HTTPException(status_code=401, detail="Credenciales inválidas")
@@ -66,3 +65,6 @@ def login_oauth(
 
     access_token = create_access_token(data={"sub": str(user.id)})
     return {"access_token": access_token, "token_type": "bearer"}
+
+
+
