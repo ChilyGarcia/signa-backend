@@ -1,6 +1,6 @@
 FROM python:3.12-slim
 
-# Variables
+# Variables de entorno
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     APP_MODULE=app.main:app \
@@ -17,11 +17,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN useradd -m appuser
 WORKDIR /app
 
+# Copiar archivo de configuración alembic.ini
+COPY alembic.ini /app/alembic.ini
+
 # Instalar dependencias
 COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copiar la estructura de app
+# Copiar la estructura de la aplicación
 COPY app /app/app
 RUN chown -R appuser:appuser /app
 USER appuser
