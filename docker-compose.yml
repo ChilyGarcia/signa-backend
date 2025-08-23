@@ -3,7 +3,7 @@ version: "3.9"
 services:
   api:
     build: .
-    env_file: .env  # Asegúrate de que las variables de entorno se carguen
+    env_file: .env
     restart: always
     ports:
       - "8000:8000"
@@ -14,8 +14,6 @@ services:
       interval: 15s
       timeout: 3s
       retries: 5
-    command: >
-      sh -c "alembic upgrade head && gunicorn app.main:app --workers 2 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000"
 
   nginx:
     image: nginx:1.27-alpine
